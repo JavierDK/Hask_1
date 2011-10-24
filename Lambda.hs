@@ -43,27 +43,49 @@ newname fv v = head . filter (\x -> not . elem x $ fv) . iterate ('_':) $ v
 
 -- Обычная бета-редукция, хендлящая переименования переменных
 betaRecuct :: Varible -> Term -> Term -> Term
-betaRecuct var what (Abs y t) =
-    if (elem y (free t))
-      then betaRecuct var what (subst var what (Abs (newname (free t) y) t))
-      else subst var what (Abs y t) 
+betaRecuct var what (Abs v t) =
+    if (v == var)
+      then (Abs v t)
+      else Abs name (betaRecuct var what (subst v (Var name) t))
+          where name = newname ((free t) ++ (free what)) v 
 betaRecuct var what (Var v) = subst var what (Var v)
 betaRecuct var what (App t t') = App (betaRecuct var what t) (betaRecuct var what t')   
 
+betaReduct = betaRecuct
+
 -- Нормализация нормальным порядком терма term
 normal' :: Term -> Term
-normal' (Var v) = Var v
-normal' (Abs v t) = Abs v t
-normal' (App (Var v) t') = App (Var v) (normal' t')
-normal' (App (Abs v t) t') = normal'( betaRecuct v t' t)
-normal' (App t t') = App (normal' t) t'
+normal' t = if (snd (oneStepN t))
+	then t
+        else normal' (fst (oneStepN t))
+
+oneStepN :: Term -> (Term, Bool)
+oneStepN t =  case t of
+	Var v -> (t,True)
+	Abs v t -> (Abs v (fst (oneStepN t)),snd (oneStepN t))
+	App (Abs v t) t' -> (betaReduct v t t', False)
+	App t t' -> if snd (oneStepN t)
+              then if snd (oneStepN t')
+		   then (t, True)
+		   else (App t (fst (oneStepN t')), False) 
+	      else (App (fst (oneStepN t)) t',False)   
 
 -- Нормализация аппликативным порядком терма term
 applicative' :: Term -> Term
-applicative' (Var v) = Var v
-applicative' (Abs v t) = Abs v t
-applicative' (App (Abs v t) t') = betaRecuct v t' t
-applicative' (App t t') = App (applicative' t) (applicative' t')
+applicative' t = if (snd (oneStepA t))
+		then t
+		else applicative' (fst (oneStepA t))
+
+oneStepA :: Term -> (Term, Bool)
+oneStepA t =  case t of
+	Var v -> (t,True)
+	Abs v t -> (Abs v (fst (oneStepA t)),snd (oneStepA t))
+	App (Abs v t) t' -> (betaReduct v t t', False)
+	App t t' -> if snd (oneStepA t)
+              then if snd (oneStepA t')
+		   then (t, True)
+		   else (App (fst (oneStepA t)) t', False) 
+	      else (App  t (fst (oneStepA t')),False)
 
 -- Маркер конца ресурсов
 data TooLoong = TooLoong deriving Show
@@ -72,18 +94,22 @@ data TooLoong = TooLoong deriving Show
 -- Результат: Или числа итераций недостаточно, чтобы достичь нормальной
 -- формы. Или (число нерастраченных итераций, терм в нормальной форме).
 -- 
--- normal :: Int -> Term -> Either TooLoong (Int, Term)
--- normal n term = ?
-
--- Эту строчку после реализации стереть
-normal _ = normal'
+normal :: Int -> Term -> Either TooLoong (Int, Term)
+normal n t = if (n<0) 
+		then Left TooLoong
+		else if (snd (oneStepN t))
+			then Right (n, t)
+			else normal (n-1) (fst (oneStepN t))  
 
 -- (*) Аналогичная нормализация аппликативным порядком.
--- applicative :: Int -> Term -> Either TooLoong (Int, Term)
--- applicative n term = ?
+applicative :: Int -> Term -> Either TooLoong (Int, Term)
+applicative n t = if (n<0) 
+		then Left TooLoong
+		else if (snd (oneStepA t))
+			then Right (n, t)
+			else applicative (n-1) (fst (oneStepA t))
 
--- Эту строчку после реализации стереть
-applicative _ = applicative'
+
 
 -- (***) Придумайте и реализуйте обобщённую функцию, выражающую некоторое
 -- семейство стратегий редуцирования. В том смысле, что номальная, нормальная
