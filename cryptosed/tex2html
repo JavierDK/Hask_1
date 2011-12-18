@@ -1,0 +1,64 @@
+#! /bin/bash
+
+function output {
+  opened=0
+  str=""
+  while read str  
+  do
+    tag=""
+    if [ "${str:0:1}" = "<" ]
+    then
+      tag=$str
+      str=""
+    fi
+    if [ -n "$str" ]
+    then
+      if [ $opened -eq 0 ]
+      then
+        echo -n '<p>'
+        echo -n "$str"  
+        opened=1 
+      else
+        echo
+        echo -n "$str" 
+      fi
+    elif [ "$opened" -eq "1" ]
+    then
+      opened=0;
+      echo '</p>' 
+    fi
+    if [ -n "$tag" ]
+    then
+      echo "$tag"
+    fi
+  done
+  if [ $opened -eq 1 ]
+  then
+    echo '</p>'
+  fi
+  return 0
+}
+
+s=""
+
+read s
+
+cat << EOF
+<html>
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>$s</title>
+</head>
+<body>
+EOF
+
+sed 's/.*\%.*//g' | sed 's/\ \ */\ /g' | sed 's/\ *$//g'| sed 's/^\ *//g' | sed 's/^\\section{\(.*\)}$/<h1>\1<\/h1>/g' | sed 's/^\\subsection{\(.*\)}$/<h2>\1<\/h2>/g' | sed 's/\\/\\\\/g' > tmp 
+
+cat tmp | output
+
+rm tmp
+
+cat << EOF
+</body>
+</html>
+EOF
