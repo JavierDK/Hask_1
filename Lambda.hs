@@ -42,16 +42,14 @@ iterate f x = (:) x $ iterate f (f x)
 newname fv v = head . filter (\x -> not . elem x $ fv) . iterate ('_':) $ v
 
 -- Обычная бета-редукция, хендлящая переименования переменных
-betaRecuct :: Varible -> Term -> Term -> Term
-betaRecuct var what (Abs v t) =
+betaReduct :: Varible -> Term -> Term -> Term
+betaReduct var what (Abs v t) =
     if (v == var)
       then (Abs v t)
-      else Abs name (betaRecuct var what (subst v (Var name) t))
+      else Abs name (betaReduct var what (subst v (Var name) t))
           where name = newname ((free t) ++ (free what)) v 
-betaRecuct var what (Var v) = subst var what (Var v)
-betaRecuct var what (App t t') = App (betaRecuct var what t) (betaRecuct var what t')   
-
-betaReduct = betaRecuct
+betaReduct var what (Var v) = subst var what (Var v)
+betaReduct var what (App t t') = App (betaReduct var what t) (betaReduct var what t')   
 
 -- Нормализация нормальным порядком терма term
 normal' :: Term -> Term
