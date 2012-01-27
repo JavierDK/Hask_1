@@ -1,33 +1,42 @@
+import System.Environment
 import System.IO
-import System.Environment (getArgs)
-import Network (listenOn, accept, Socket, withSocketsDo, PortID(..))
-import Control.Concurrent
+import Network
+import Control.Concurrent (forkIO)
 import Control.Monad
-import Directory (doesFileExist)
+import Prelude
+import System.Directory
 
-makeAnswer str = do
-    if (take 5 str) == "GET /"
+makeResponse req = do
+  if (take 5 req) == "GET /"
+    then do
+      let file = drop 5 $ take ((length req) - 10) req
+      exists <- doesFileExist file
+      if exists
         then do
-            name <- return ((drop 5 (take ((length str) - 10) str)))
-            flag <- doesFileExist name
-            if flag
-                then do
-                    h <- openFile name ReadMode
-                    content <- hGetContents h
-                    seq content (hClose h)
-                    return ("HTTP/1.1 200 OK\r\nContent-Length: " ++ (show (length content)) ++ "\r\n\r\n" ++ content)
-                else return "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\r\n404: Not Found"
-        else return "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\n400: Bad Request"
+          content <- readFile file
+          return ("HTTP/1.1 200 OK\r\nContent-Length: " ++ (show (length content)) ++ "\r\n\r\n" ++content)
+	else return "HTTP/1.1 404 Not Found\r\nContent-Type: text/plain\r\n\r\n404: Not Found"
+    else return "HTTP/1.1 400 Bad Request\r\nContent-Type: text/plain\r\n\r\n400: Bad Request"
 
-main = withSocketsDo $ do
-    [portStr] <- getArgs
-    let port = fromIntegral (read portStr :: Int)
-    socket <- listenOn (PortNumber port)
-    forever $ do
-        (h, _, _) <- accept socket
-        forkIO $ do
-            hSetBuffering h LineBuffering
-            r <- hGetLine h
-            hSetBuffering h NoBuffering
-            (makeAnswer r) >>= (hPutStr h)
-            hClose h
+server :: PortNumber -> IO()
+server port = withSocketsDo $ do 
+  socket <- listenOn(PortNumber port)
+  forever $ do  
+    (sockh, _, _) <- accept socket
+    forkIO $ do 
+      hSetBuffering sockh LineBuffering
+      s <- hGetLine sockh
+      hSetBuffering sockh NoBuffering
+      response <- makeResponse s
+      hPutStr sockh response
+      hClose sockh
+
+
+main :: IO()
+main = do
+  portNums <- getArgs
+  let port | (length portNums) > 1 = error "Too much arguments"
+           | otherwise            = fromIntegral $ read $ head portNums
+  if (port < 0)
+    then print "Illegal port number"
+    else server (fromIntegral port)  
