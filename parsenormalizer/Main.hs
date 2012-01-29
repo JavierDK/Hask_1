@@ -25,30 +25,36 @@ TokenParser{ parens = m_parens
 appParser :: Parser Term
 appParser = termParser `chainl1` (return App)
 
+varParser :: Parser Term
+varParser = do
+  {  var <- m_identifier;
+  ;  return $ Var var
+  }
+
 absParser :: Parser Term
 absParser = do
-    {  var <- m_identifier
-    ;  (m_reservedOp ".") <|> (m_reserved "->")
-    ;  term <- termParser
-    ;  return $ Abs var term
-    }
-    <|> do
-    {  var <- m_identifier
-    ;  term <- absParser
-    ;  return $ Abs var term  
-    }
+   { var <- m_identifier
+   ;do
+     {  (m_reservedOp ".") <|> (m_reserved "->")
+     ;  term <- termParser
+     ;  return $ Abs var term
+     }
+     <|> do
+     {  term <- absParser
+     ;  return $ Abs var term  
+     }
+   }
 
 termParser :: Parser Term
 termParser = do
-    {  m_parens termParser >>= return
+    {  m_parens appParser >>= return
     }
     <|> do
     {  m_reservedOp "\\"
     ;  absParser >>= return
     }
     <|> do
-    {  v <- m_identifier
-    ;  return $ Var v
+    {  varParser >>= return
     }
 
 fileParser :: Parser Term
@@ -56,13 +62,13 @@ fileParser = do
      {  m_reserved "let"
      ;  var <- m_identifier
      ;  m_reservedOp "="
-     ;  what <- termParser
+     ;  what <- appParser
      ;  m_reserved "in"
-     ;  term <- termParser
+     ;  term <- fileParser
      ;  return $ subst var what term
      }
      <|> do
-     {  term <- termParser
+     {  term <- appParser
      ;  return term
      }
      <|> do
@@ -81,5 +87,5 @@ main = do
                    putStr "parse error at";
                    print err
 		} 
-         Right x -> print {-$ normal'-} x
+         Right x -> print $ normal' x
     else print "No such file in directory"

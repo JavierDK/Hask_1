@@ -32,7 +32,7 @@ subst var what term = case term of
     Var v    -> if v == var then what else term
     Abs v t  -> if v == var then term else Abs v (subst var what t)
     App t t' -> App (subst var what t) (subst var what t')
-    EmptyTerm = EmptyTerm
+    EmptyTerm -> EmptyTerm
 
 -- Содержит ли список элемент?
 elem a [] = False
@@ -53,7 +53,7 @@ betaReduct var what (Abs v t) =
           where name = newname ((free t) ++ (free what)) v 
 betaReduct var what (Var v) = subst var what (Var v)
 betaReduct var what (App t t') = App (betaReduct var what t) (betaReduct var what t')   
-betaReduct EmptyTerm = EmptyTerm
+betaReduct var what EmptyTerm = EmptyTerm
 
 -- Нормализация нормальным порядком терма term
 normal' :: Term -> Term
@@ -72,7 +72,7 @@ oneStepN t =  case t of
 		   then (t, True)
 		   else (App t (fst (oneStepN t')), False) 
 	      else (App (fst (oneStepN t)) t',False) 
-        EmptyTerm -> EmptyTerm  
+        EmptyTerm -> (EmptyTerm, True)  
 
 -- Нормализация аппликативным порядком терма term
 applicative' :: Term -> Term
