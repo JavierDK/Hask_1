@@ -1,0 +1,87 @@
+#! /bin/bash -e
+
+home=$(echo ~)
+
+QQEDIR=""
+GETELEMFUNC="wget"
+REFERER=""
+
+if [ "$1" = "-w" ]
+then
+  if [ -z "$2" ]
+  then
+    echo "Error: Argument was expected">&2
+    exit 1
+  fi
+  QQEDIR="$2"
+  shift 2
+else
+  if [ -f "$home/.fetch4merc" ]
+  then
+    str=$(grep "QQEDIR=" "$home/.fetch4merc") || true
+    str=${str:7}
+    if [ ! -z "$str" ]
+    then 
+      QQEDIR=$str
+    fi
+  else
+    echo "Warnig: there is no configuration file" >&2
+  fi
+fi
+
+if [ -z "$QQEDIR" ]
+then
+  if [ ! -d "$home/.fetch4me" ]
+  then
+    mkdir "$home/.fetch4me" || true 
+    if [ ! -d "$home/.fetch4me" ]
+    then
+      echo "Error: Impossible to create default directory" >&2 
+      exit 1
+    fi
+  fi
+else
+  mkdir "$QQEDIR" 2>/dev/null  || true
+  if [  ! -d "$QQEDIR" ]
+  then
+      echo "Error: Impossible to create the directory"
+      exit 1
+  fi
+fi
+
+if [ "$1" = "-r" ]
+then
+  if [ -z "$2" ]
+  then
+    echo "Error: Argument was expected" >&2
+    exit 1
+  fi
+  REFERER="$2"
+  shift 2
+fi
+
+if [ -f "$home/.fetch4merc" ]
+then
+  str=""
+  str=$(grep "GETELEMFUNC=" "$home/.fetch4merc") || true
+  str=${str:12}
+  if [ ! -z "$str" ]
+  then 
+    GETELEMFUNC=$str
+  fi
+fi
+
+FuncExists="0" 
+for i in `(echo $PATH)|sed 's/:/ /g'` 
+do
+  if [ -f "$i/$GETELEMFUNC" ]
+  then
+    FuncExists="1"
+  fi 
+done
+
+if [ "$FuncExists" -eq "0" ]
+then
+  echo "Error: Bad function" >&2
+  exit 1
+fi
