@@ -6,6 +6,19 @@ QQEDIR=""
 GETELEMFUNC="wget"
 REFERER=""
 
+head=0
+tail=0
+
+demonize()
+{
+  trap '' 12
+  ps
+  while [ "b" > "a" ]
+  do
+    s=""
+  done
+}
+
 if [ "$1" = "-w" ]
 then
   if [ -z "$2" ]
@@ -84,4 +97,61 @@ if [ "$FuncExists" -eq "0" ]
 then
   echo "Error: Bad function" >&2
   exit 1
+fi
+
+if [ ! -f "$QQEDIR/.queue" ]
+then
+  touch "$QQEDIR/.queue" "$QQEDIR/.status" "$QQEDIR/.finished"
+fi
+
+pid="675136561561"
+str=""
+if [ -f "$QQEDIR/.mypid" ]
+then
+  cat "$QQEDIR/.mypid" | read pid || true
+  echo "$pid"
+  str=$(ps ax|grep "$pid" | grep -v "grep") || true
+fi
+
+echo "$str"
+
+if [  -z "$str" ]
+then
+  for i in $*
+  do
+    refs[$tail]=$REFERER
+    gets[$tail]=$GETELEMFUNC
+    urls[$tail]=$i
+    tail=$[ $tail + 1 ]
+  done
+  demonize &
+elif [ "$pid" -eq "$$" ]
+then
+  for i in $*
+  do
+    refs[$tail]=$REFERER
+    gets[$tail]=$GETELEMFUNC
+    urls[$tail]=$i
+    tail=$[ $tail + 1 ]
+  done
+  demonize &
+else
+  if [ "$#" -eq "0" ]
+  then
+    echo "Error: No URLs"
+    exit 1
+  else
+    for i in $*
+    do
+      t=0;
+      while [ -f "$QQEDIR/.r$t" ]
+      do
+    	t=$[ $t + 1 ]
+      done
+      echo "REFERER=$REFERER" >> "$QQEDIR/.r$t"
+      echo "GETELEMFUNC=$GETELEMFUNC" >> "$QQEDIR/.r$t"
+      echo "URL=$i" >> "$QQEDIR/.r$t"
+    done
+    exit 0
+  fi 
 fi
