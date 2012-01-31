@@ -4,18 +4,44 @@ data Tree a = Node a (Tree a) (Tree a) | Leaf
 
 data Direct = L | R
 
-data ZipTree a = ZipTree ([Direct], [a], [Tree a], Tree a)
+data ZipTree a = ZipTree { dir :: [Direct]
+                         , value :: [a]
+			 , subTree :: [Tree a]
+                         , finalTree :: Tree a
+                         }
 
 toLeft :: ZipTree a -> ZipTree a
-toLeft (ZipTree (d, lv, lt, Node a b c)) = ZipTree (L:d, a:lv,  c:lt, b)
-toLeft x = x
+toLeft z = case (finalTree z) of
+     Node a l r -> ZipTree { dir = L : (dir z)
+			   , value = a : (value z)
+			   , subTree = r : (subTree z)
+			   , finalTree = l
+			   }
+     Leaf -> z
 
 toRight :: ZipTree a -> ZipTree a
-toRight (ZipTree (d, lv, lt, Node a b c)) = ZipTree (R:d, a:lv,  b:lt, c)
-toRight x = x
+toRight z = case (finalTree z) of
+     Node a l r -> ZipTree { dir = R : (dir z)
+			   , value = a : (value z)
+			   , subTree = l : (subTree z)
+			   , finalTree = r
+			   }
+     Leaf -> z
 
-toTop :: ZipTree a -> ZipTree a
-toTop (ZipTree (d:[], v:[],  t:[], x)) = ZipTree (d:[], v:[],  t:[], x)
-toTop (ZipTree (d:ld, v:lv,  t:lt, x)) = case d of
-                        L -> ZipTree (ld, lv, lt, Node v x t)
-                        R -> ZipTree (ld, lv, lt, Node v t x)    
+toParent :: ZipTree a -> ZipTree a
+toParent z = case (dir z) of
+     [] -> z
+     d:ld -> ZipTree { dir = ld
+		     , value = tail $ value z
+		     , subTree = tail $ subTree z
+		     , finalTree = case d of
+				L -> Node (head $ value z) (finalTree z) (head $ subTree z)
+				R -> Node (head $ value z) (head $ subTree z) (finalTree z)
+		     }
+
+initZip :: Tree a -> ZipTree a
+initZip tree = ZipTree{ dir = []
+		      , value = []
+		      , subTree = []
+		      , finalTree = tree
+		      }
