@@ -11,10 +11,6 @@ void print_reversed(char* arr, int first, int last)
   printf("\n");
 }
 
-void flush()
-{
-}
-
 int main()
 {
   int sz = 0, over = 0;
@@ -32,7 +28,6 @@ int main()
         else
           over = 0;
         pos = i+1;
-        
       }
     if (pos == 0)
     {
@@ -43,7 +38,7 @@ int main()
     {
        for (int j= pos; j < BUF_SZ+1; j++)
           buf[j - pos] = buf[j];
-        sz = BUF_SZ - pos;        
+        sz = BUF_SZ + 1 - pos;        
         over = 0;
     }
   }
