@@ -1,34 +1,45 @@
-#include <stdio.h>
-#include <stdlib.h>
+#define BUF_SZ 5
 
-#define BUF_SZ 10
-
-void print_reversed(char* arr, int first, int last)
+int print_reversed(char* arr, int first, int last)
 {
-  int i;
-  for (i = last; i >= first; i--)
-    printf("%c", arr[i]);
-  printf("\n");
+  int i, sz = 0;
+  char ans[BUF_SZ+1];
+  for (i = last-1; i >= first; i--)
+  {
+    ans[sz] = arr[i];
+    sz++;
+  }
+  ans[sz] = arr[last];
+  sz++;
+  return write(1, ans, sz);
 }
 
 int main()
 {
   int sz = 0, over = 0;
   char buf[BUF_SZ+1];
-  for (;;)
+  int read_status; 
+  while (1)
   {
-    fread(buf+sz, 1, BUF_SZ-sz + 1, stdin);
+    read_status = read(0, buf+sz, BUF_SZ-sz + 1);
+    if (read_status < 0)
+      return -1;
     sz = BUF_SZ+1;
     int pos=0;
     for (int i = 0; i < sz; i++)
       if (buf[i]=='\n')
       {
         if (! over)
-          print_reversed(buf, pos, i-1);
+ 		{
+          if (print_reversed(buf, pos, i) <= 0)
+            return -1;
+        }    
         else
           over = 0;
         pos = i+1;
       }
+    if (read_status == 0)
+      return 0;
     if (pos == 0)
     {
       sz = 0;
