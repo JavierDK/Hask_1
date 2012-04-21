@@ -1,5 +1,5 @@
 #include <stddef.h>
-//#include <stdio.h>
+#include <stdio.h>
 
 #define LEAF_SZ 3
 #define STR_LEN 10
@@ -39,7 +39,7 @@ void printReverse(Rope *x)
 	printReverse(x -> right);
 	for (int i = LEAF_SZ - 1; i >=0; i--)
 		if (x -> key[i] != 0)
-			write(1, (x -> key) + i, 1);
+			write(1, &(x -> key[i]), sizeof(char));
 	printReverse(x -> left);
 }
 
@@ -50,6 +50,7 @@ Rope* makeRope(char* str, int sz)
 		return NULL;
 	if (sz > LEAF_SZ)
 		return NULL;
+	node -> amount = sz;
 	for (int i = 0; i < LEAF_SZ; i++)
 		if (i < sz)
 			node -> key[i] = str[i];
@@ -79,7 +80,6 @@ int main()
 	while (1)
 	{
 		it++;
-		printf("%d", it);
 		int status = read(0, in, LEAF_SZ);
 		if (status == 0)
 		{
@@ -101,8 +101,10 @@ int main()
 				Rope* node = makeRope(head, i);
 				root = concat(root, node);
 				if (root -> amount < STR_LEN)
-				  printReverse(root);
-				write(1,"\n",1);
+				{
+				   printReverse(root);
+				   write(1,"\n",1);
+				}
 				sz = sz - (i + 1);
 				freeRope(root);
 				root = NULL;
@@ -110,7 +112,7 @@ int main()
 			}
 		}
 		if (sz>0)
-			concat(root, makeRope(in, sz));
+			root = concat(root, makeRope(in, sz));
 	}
 	return 0;
 }
