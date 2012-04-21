@@ -21,7 +21,7 @@ Rope* concat(Rope *a, Rope *b)
 	if (a -> prior < b -> prior)
 	{
 		a -> amount += b -> amount;
-		a -> right = concat (b, a -> right);
+		a -> right = concat (a -> right, b);
 		return a;
 	}
 	else
@@ -50,8 +50,11 @@ Rope* makeRope(char* str, int sz)
 		return NULL;
 	if (sz > LEAF_SZ)
 		return NULL;
-	for (int i = 0; i < sz; i++)
-		node -> key[i] = str[i];
+	for (int i = 0; i < LEAF_SZ; i++)
+		if (i < sz)
+			node -> key[i] = str[i];
+		else
+			node -> key[i] = 0;
 	node -> prior = rand();
 	node -> left = NULL;
 	node -> right = NULL;
@@ -71,9 +74,12 @@ void freeRope(Rope *node)
 int main()
 {
 	char in[LEAF_SZ];
-	Rope *root;
+	Rope *root = NULL;
+	int it=0;
 	while (1)
 	{
+		it++;
+		printf("%d", it);
 		int status = read(0, in, LEAF_SZ);
 		if (status == 0)
 		{
@@ -82,23 +88,29 @@ int main()
 			freeRope(root);
 			return 0;
 		}
+		if (status < 0)
+			return -1;
 		int sz = status;
 		for (int i = 0; i < sz; i++)
 		{
 			if (in[i] == '\n')
 			{
 				char head[LEAF_SZ];
-				memcpy(head, in, (size_t)i*sizeof(char));				
-				memmove(head, in, (sz - (i+1))*sizeof(char));
+				memcpy(head, in, i*sizeof(char));				
+				memmove(in, in + i + 1, (sz - (i+1))*sizeof(char));
 				Rope* node = makeRope(head, i);
-				printReverse(concat(root, node));
+				root = concat(root, node);
+				if (root -> amount < STR_LEN)
+				  printReverse(root);
 				write(1,"\n",1);
 				sz = sz - (i + 1);
 				freeRope(root);
+				root = NULL;
 				i = 0;
 			}
 		}
-		concat(root, makeRope(in, sz));
+		if (sz>0)
+			concat(root, makeRope(in, sz));
 	}
 	return 0;
 }
