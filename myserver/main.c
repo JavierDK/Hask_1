@@ -4,6 +4,7 @@
 #include <sys/socket.h>
 #include <stdlib.h>
 #include <netinet/in.h>
+#include <netdb.h>
 
 typedef struct SocketPair
 {
@@ -69,6 +70,23 @@ void bindSocks(SocketPair *s, char **port, int n)
 		{
 			write(1, port[i], strlen(port[i]));
 			char *msg = " port and IPv4 socket binded\n";
+			write(1, msg, strlen(msg));
+		}
+		bzero(&serv_in6, sizeof(serv_in6));
+		serv_in6.sin6_family = AF_INET6;
+		serv_in6.sin6_port = htons(num);
+		int fl;
+		fl = setsockopt(s -> ipv6[i], IPPROTO_IPV6, IPV6_V6ONLY, "1", sizeof(int));
+		if (bind(s -> ipv6[i], (struct sockaddr *) &serv_in6, sizeof(serv_in6)) < 0)
+		{
+			char *msg = "Impossible to bind IPv6 socket and port\n";
+			write(2, msg, strlen(msg));
+			exit(1);
+		}
+		else
+		{
+			write(1, port[i], strlen(port[i]));
+			char *msg = " port and IPv6 socket binded\n";
 			write(1, msg, strlen(msg));
 		}		
 	}
