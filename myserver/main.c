@@ -7,6 +7,7 @@
 #include <netdb.h>
 #include <poll.h>
 #include <pthread.h>
+#include <unistd.h>
 
 
 #define MSG_SIZE 21
@@ -138,6 +139,30 @@ void *writefd(void *ptr)
 {
 	int id = ((pairii*) ptr )-> id;
 	int fd = ((pairii*) ptr )-> fd;
+	char *msg;
+	printf("%d %d\n",id, fd);
+	while (1)
+	{
+		printf("%d %d\n", first[id], last[id]);
+		while (first[id] == last[id])
+			sleep(1);
+		msg = qu[id][first[id]] -> data.str;
+		int status;
+		for (int i = 0; i < 5; i++)
+		{
+			status = write(fd, msg, strlen(msg));
+			if (status > 0)
+				break;			
+		}
+		if (status == -1)
+		{
+			failed[id] = 1;
+			return;
+		}
+		pthread_mutex_lock(&qumutex);
+		erase(id);		
+		pthread_mutex_unlock(&qumutex);
+	}
 }
 
 void startSock4(void *data)
@@ -260,8 +285,8 @@ int main(int argc, char **argv)
 	socks = createSockets(socketAmount, argv+1);
 	first = (int *)calloc(2*socketAmount, sizeof(int));
 	last = (int *)calloc(2*socketAmount, sizeof(int));
-	for (int i = 0; i < 2*socketAmount; i++)
-		last[i] = 1;
+/*	for (int i = 0; i < 2*socketAmount; i++)
+		last[i] = 1;*/
 	qu = (Node***)calloc(2*socketAmount, sizeof(Node**));
 	for (int i = 0; i < 2*socketAmount; i++)
 	  qu[i] = (Node **) calloc(QUE_SIZE, sizeof(Node*));
