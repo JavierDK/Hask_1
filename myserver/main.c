@@ -8,8 +8,13 @@
 #include <poll.h>
 #include <pthread.h>
 
+
+#define MSG_SIZE 21
+#define QUE_SIZE 1000
+
 int failed[1024];
 
+pthread_mutex_t lockQu = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct mypair
 {
@@ -27,12 +32,16 @@ typedef struct SocketPair
 typedef struct Node
 {
 	char *str;
-	struct Node *prev, *next;
+	struct Node *prev;
 } Node;
 
 
 Node **head, **tail;
 int *sz;
+
+void pop(int i)
+{
+}
 
 SocketPair createSockets(int n, char **ports)
 {
