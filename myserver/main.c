@@ -8,7 +8,7 @@
 #include <poll.h>
 #include <pthread.h>
 #include <unistd.h>
-
+#include <poll.h>
 
 #define MSG_SIZE 21
 #define QUE_SIZE 1001
@@ -17,6 +17,58 @@ int failed[1024];
 int socketAmount;
 
 pthread_mutex_t qumutex = PTHREAD_MUTEX_INITIALIZER;
+
+char* get_reversed(char* arr, int first, int last)
+{
+  int i, sz = 0;
+  char ans[MSG_SIZE+1];
+  for (i = last-1; i >= first; i--)
+  {
+    ans[sz] = arr[i];
+    sz++;
+  }
+  ans[sz] = arr[last];
+  sz++;
+  if (ans[sz-1] == 0)
+	sz--;	
+  return ans;
+}
+
+char* procBuffer(int read_status, int *sz, int *over, char *buf)
+{
+	*sz += read_status;
+    int pos = 0;
+    for (int i = 0; i < *sz; i++)
+    {
+      if (buf[i] == '\n')
+      {
+        if (! *over)
+ 		   return get_reversed(buf, pos, i); 
+        else
+          *over = 0;
+        pos = i+1;
+      }
+	}
+
+	if (*sz == MSG_SIZE + 1 && pos == 0)
+	{
+	  *over = 1;
+	  *sz = 0;
+	  for (int i = 0; i <= MSG_SIZE; i++)
+		buf[i] = 0;
+	}
+	else
+	{
+		for (int i = pos; i < *sz; i++)
+			buf[i - pos] = buf[i];
+		*sz = *sz - pos;
+		for (int i = *sz; i < MSG_SIZE + 1; i++)
+			buf[i] = 0;
+	}
+    
+	return NULL;
+}
+
 
 typedef struct mypair
 {
@@ -140,17 +192,21 @@ void *writefd(void *ptr)
 	int id = ((pairii*) ptr )-> id;
 	int fd = ((pairii*) ptr )-> fd;
 	char *msg;
-	printf("%d %d\n",id, fd);
+	struct pollfd pfd;
+	bzero(&pfd, sizeof(pfd));
+	pfd.fd = fd;
+	pfd.events = POLLOUT;
 	while (1)
 	{
-		printf("%d %d\n", first[id], last[id]);
 		while (first[id] == last[id])
 			sleep(1);
 		msg = qu[id][first[id]] -> data.str;
 		int status;
+		poll(&pfd, 1, -1);
 		for (int i = 0; i < 5; i++)
 		{
-			status = write(fd, msg, strlen(msg));
+			
+			status = send(fd, msg, strlen(msg), 0);
 			if (status > 0)
 				break;			
 		}
@@ -162,6 +218,45 @@ void *writefd(void *ptr)
 		pthread_mutex_lock(&qumutex);
 		erase(id);		
 		pthread_mutex_unlock(&qumutex);
+	}
+}
+
+void *readfd(void *ptr)
+{
+	int status=1;
+	int fd = ((pairii*) ptr) -> fd;
+	int id = ((pairii*) ptr) -> id;
+	char word[MSG_SIZE+1];
+	char *ans;
+	struct pollfd pfd;
+	bzero(&pfd, sizeof(pfd));
+	pfd.fd = fd;
+	pfd.events = POLLIN;
+	int sz = 0, over = 0;
+	while (1)
+	{
+		write(1, "!!", 2);
+		poll(&pfd, 1, -1);
+		write(1, "!!", 2);
+		status = 0;
+		if (pfd.revents & POLLIN)
+			status = recv(fd, word, MSG_SIZE, 0);
+		if (status < 0)
+			return;
+		write(1,"!!",2);
+		if (status>0)
+		{
+			write(1,"!!",2);
+			ans = procBuffer(status, &sz, &over, word);
+			pthread_mutex_lock(&qumutex);
+			Node *new = push(ans);
+			addAll(new);		
+			pthread_mutex_unlock(&qumutex);
+		}
+		if (failed[id])
+		{
+			return;
+		}
 	}
 }
 
@@ -210,25 +305,12 @@ void startSock4(void *data)
 	Node *node = push(ack);
 	addAll(node);		
 	pthread_mutex_unlock(&qumutex);
-	pthread_t writer;
+	pthread_t writer, reader;
 	pairii p;
     p.id = id;
 	p.fd = new_sfd;
 	pthread_create(&writer, NULL, writefd, (void*)&p);
-	int status=1;
-	char word[MSG_SIZE];
-	while (status >=0)
-	{
-		status = read(new_sfd, word, MSG_SIZE);
-		pthread_mutex_lock(&qumutex);
-		Node *new = push(word);
-		addAll(new);		
-		pthread_mutex_unlock(&qumutex);
-		if (failed[id])
-		{
-			return;
-		}
-	}
+	pthread_create(&reader, NULL, readfd, (void*)&p);
 }
 
 
