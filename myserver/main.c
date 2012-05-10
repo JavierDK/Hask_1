@@ -10,11 +10,12 @@
 
 
 #define MSG_SIZE 21
-#define QUE_SIZE 1000
+#define QUE_SIZE 1001
 
 int failed[1024];
+int socketAmount;
 
-pthread_mutex_t lockQu = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t qumutex = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct mypair
 {
@@ -29,18 +30,73 @@ typedef struct SocketPair
 	int* ipv6;
 } SocketPair;
 
-typedef struct Node
+typedef struct ListData
 {
 	char *str;
+	int ref;
+} ListData;
+
+typedef struct Node
+{
+	ListData data;
 	struct Node *prev;
 } Node;
 
 
-Node **head, **tail;
-int *sz;
+Node *head, *tail;
+Node ***qu;
+int *first, *last;
 
-void pop(int i)
+void pop()
 {
+	if (head == tail)
+	{
+		head = NULL;
+		tail = NULL;
+		return;
+	}
+	head = head -> prev;
+	free(head);
+}
+
+Node* push(char *str)
+{
+	Node *new = (Node *)malloc(sizeof(Node));
+	new -> data.str	= str;
+	new -> data.ref = 2*socketAmount;
+	new -> prev = NULL;
+	if (head == NULL)
+	{
+		head = new;
+		tail = new;
+	}	
+	else
+	{
+		tail -> prev = new;
+		tail = new; 
+	}
+	return new;
+}
+
+void erase(int i)
+{
+	if (i >= 2*socketAmount)
+	 return;
+	qu[i][first[i]] -> data.ref--;
+	if (qu[i][first[i]] -> data.ref <= 0)
+		pop();			
+	first[i] = (first[i] + 1) % QUE_SIZE;	
+}
+
+void addAll(Node *elem)
+{
+	for (int i = 0; i < 2*socketAmount; i++)
+	{
+		qu[i][last[i]] = elem;
+		last[i] = (last[i] + 1) % QUE_SIZE;
+		if (last[i] == first[i])
+			pop(i);
+	}
 }
 
 SocketPair createSockets(int n, char **ports)
@@ -156,12 +212,16 @@ int main(int argc, char **argv)
 		write(1, err_mas, sizeof(char)*strlen(err_mas));
 		return -1; 
 	}
-	int socketAmount = argc - 1;
+	socketAmount = argc - 1;
 	SocketPair socks;
 	socks = createSockets(socketAmount, argv+1);
-	head = (Node **)calloc(2*socketAmount, sizeof(Node*));
-	tail = (Node **)calloc(2*socketAmount, sizeof(Node*));
-	sz = (int *)calloc(2*socketAmount, sizeof(int));
+	first = (int *)calloc(2*socketAmount, sizeof(int));
+	last = (int *)calloc(2*socketAmount, sizeof(int));
+	for (int i = 0; i < 2*socketAmount; i++)
+		last[i] = 1;
+	qu = (Node***)calloc(2*socketAmount, sizeof(Node**));
+	for (int i = 0; i < 2*socketAmount; i++)
+	  qu[i] = (Node **) calloc(QUE_SIZE, sizeof(Node*));
 	mypair* arg4 = (mypair *)calloc(socketAmount, sizeof(mypair));
 	mypair* arg6 = (mypair *)calloc(socketAmount, sizeof(mypair));
 	pthread_t *threads4 = (pthread_t*)calloc(socketAmount, sizeof(pthread_t));
