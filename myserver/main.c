@@ -21,7 +21,14 @@ typedef struct mypair
 {
 	char *port;
 	int fd;
+	int id;
 } mypair; 
+
+typedef struct pairii
+{
+	int id;
+	int fd;
+} pairii;
 
 typedef struct SocketPair
 {
@@ -127,12 +134,19 @@ SocketPair createSockets(int n, char **ports)
 	return res;
 }
 
+void *writefd(void *ptr)
+{
+	int id = ((pairii*) ptr )-> id;
+	int fd = ((pairii*) ptr )-> fd;
+}
+
 void startSock4(void *data)
 {
 	struct sockaddr_in serv_in4, cli_in4;
 	int new_sfd;
 	char *port = ((mypair*) data) -> port;
 	int sfd = ((mypair*) data) -> fd;
+	int id = ((mypair*) data) -> id;
 	for (int j = 0; j < strlen(port); j++)
 	{
 			if ((port[j] < '0' || port[j] > '9'))
@@ -162,6 +176,34 @@ void startSock4(void *data)
 	socklen = sizeof(cli_in4);
 	listen(sfd, 5);
 	new_sfd = accept(sfd, (struct sock_addr*) &cli_in4, &socklen);
+	char ack[100];
+	long ip = cli_in4.sin_addr.s_addr;
+	strcpy(ack,"The client connect from IP: ");
+	strcat(ack, inet_ntoa(cli_in4.sin_addr));
+	strcat(ack, "\n");
+	pthread_mutex_lock(&qumutex);
+	Node *node = push(ack);
+	addAll(node);		
+	pthread_mutex_unlock(&qumutex);
+	pthread_t writer;
+	pairii p;
+    p.id = id;
+	p.fd = new_sfd;
+	pthread_create(&writer, NULL, writefd, (void*)&p);
+	int status=1;
+	char word[MSG_SIZE];
+	while (status >=0)
+	{
+		status = read(new_sfd, word, MSG_SIZE);
+		pthread_mutex_lock(&qumutex);
+		Node *new = push(word);
+		addAll(new);		
+		pthread_mutex_unlock(&qumutex);
+		if (failed[id])
+		{
+			return;
+		}
+	}
 }
 
 
@@ -171,6 +213,7 @@ void startSock6(void *data)
 	int new_sfd;
 	char *port = ((mypair*) data) -> port;
 	int sfd = ((mypair*) data) -> fd;
+	int id = ((mypair*) data) -> id;
 	for (int j = 0; j < strlen(port); j++)
 	{
 			if ((port[j] < '0' || port[j] > '9'))
@@ -232,6 +275,8 @@ int main(int argc, char **argv)
 		arg6[i].port = argv[i+1];
 		arg4[i].fd = socks.ipv4[i];
 		arg6[i].fd = socks.ipv6[i];
+		arg4[i].id = i;
+		arg6[i].id = socketAmount + i;
 	}
 	for (int i = 0; i < socketAmount; i++)
 	{
