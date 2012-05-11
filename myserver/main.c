@@ -34,36 +34,31 @@ char* get_reversed(char* arr, int first, int last)
   return ans;
 }
 
-char* procBuffer(int read_status, int *sz, int *over, char *buf)
+char* procBuffer(int read_status, int *over, char *buf)
 {
-	*sz += read_status;
+	int sz = read_status;
     int pos = 0;
-    for (int i = 0; i < *sz; i++)
+    for (int i = 0; i < sz; i++)
     {
       if (buf[i] == '\n')
       {
         if (! *over)
  		   return get_reversed(buf, pos, i); 
         else
-          *over = 0;
+		{
+        	*over = 0;
+			return NULL;	
+		}
         pos = i+1;
       }
 	}
 
-	if (*sz == MSG_SIZE + 1 && pos == 0)
+	if (pos == 0)
 	{
 	  *over = 1;
-	  *sz = 0;
+	  sz = 0;
 	  for (int i = 0; i <= MSG_SIZE; i++)
 		buf[i] = 0;
-	}
-	else
-	{
-		for (int i = pos; i < *sz; i++)
-			buf[i - pos] = buf[i];
-		*sz = *sz - pos;
-		for (int i = *sz; i < MSG_SIZE + 1; i++)
-			buf[i] = 0;
 	}
     
 	return NULL;
@@ -196,7 +191,6 @@ void* writefd(void *ptr)
 	bzero(&pfd, sizeof(pfd));
 	pfd.fd = fd;
 	pfd.events = POLLOUT;
-//	printf("%d\n", fd);
 	while (1)
 	{
 		while (first[id] == last[id])
@@ -206,7 +200,6 @@ void* writefd(void *ptr)
 		poll(&pfd, 1, -1);
 		for (int i = 0; i < 5; i++)
 		{
-//			printf("@@");
 			status = send(fd, msg, strlen(msg), 0);
 			if (status > 0)
 				break;			
@@ -236,23 +229,23 @@ void* readfd(void *ptr)
 	int sz = 0, over = 0;
 	while (1)
 	{
-//		write(1, "!!", 2);
 		poll(&pfd, 1, -1);
-//		write(1, "!!", 2);
 		status = 0;
+		bzero(word, MSG_SIZE);
 		if (pfd.revents & POLLIN)
 			status = recv(fd, word, MSG_SIZE, 0);
 		if (status < 0)
 			return;
-//		write(1,"!!",2);
 		if (status>0)
 		{
-//			write(1,"!!",2);
-			ans = procBuffer(status, &sz, &over, word);
-			pthread_mutex_lock(&qumutex);
-			Node *new = push(ans);
-			addAll(new);		
-			pthread_mutex_unlock(&qumutex);
+			ans = procBuffer(status, &over, word);
+			if (! over && ans != NULL)
+			{
+				pthread_mutex_lock(&qumutex);
+				Node *new = push(ans);
+				addAll(new);		
+				pthread_mutex_unlock(&qumutex);
+			}
 		}
 		if (failed[id])
 			return;
@@ -271,16 +264,14 @@ void* startSock4(void *data)
 			if ((port[j] < '0' || port[j] > '9'))
 			{
 				char *msg = "Error in arguments parsing\n";
-				//write(2, msg, strlen(msg));
+				write(2, msg, strlen(msg));
 				return;
 			}
 	}
 	int num = atoi(port);
 	serv_in4.sin_family = AF_INET;
 	serv_in4.sin_addr.s_addr = INADDR_ANY;
-	//write(1, port, sizeof(port));
 	serv_in4.sin_port = htons(num);
-	//write(1,"!!",2);
 	if (bind(sfd, (struct sockaddr *) &serv_in4, sizeof(serv_in4)) < 0)
 	{
 		char *msg = "Impossible to bind IPv4 socket and port\n";
@@ -289,13 +280,10 @@ void* startSock4(void *data)
 	}
 	else
 	{
-		//write(1,"!!",2);
 		write(1, port, strlen(port));
 		char *msg = " port and IPv4 socket binded\n";
 		write(1, msg, strlen(msg));
-		//write(1,"!!",2);
 	}
-	//return;
 	socklen_t socklen;
 	socklen = sizeof(cli_in4);
 	listen(sfd, 5);
@@ -314,7 +302,6 @@ void* startSock4(void *data)
 	pairii p;
     p.id = id;
 	p.fd = new_sfd;
-	printf("%d\n", new_sfd);
 	pthread_create(&writer, NULL, writefd, (void*)&p);
 	pthread_create(&reader, NULL, readfd, (void*)&p);
 	pthread_join(writer, NULL);
@@ -375,8 +362,6 @@ int main(int argc, char **argv)
 	socks = createSockets(socketAmount, argv+1);
 	first = (int *)calloc(2*socketAmount, sizeof(int));
 	last = (int *)calloc(2*socketAmount, sizeof(int));
-/*	for (int i = 0; i < 2*socketAmount; i++)
-		last[i] = 1;*/
 	qu = (Node***)calloc(2*socketAmount, sizeof(Node**));
 	for (int i = 0; i < 2*socketAmount; i++)
 	  qu[i] = (Node **) calloc(QUE_SIZE, sizeof(Node*));
@@ -396,18 +381,16 @@ int main(int argc, char **argv)
 	for (int i = 0; i < socketAmount; i++)
 	{
 		char *msg = "Error with threads\n";
-		write(1,"!!",2);
 		if (pthread_create(&threads4[i], NULL, startSock4, (void*) &arg4[i]) != 0)
 			write(1, msg, strlen(msg));
-//		write(1,"!!",2);
-//		if (pthread_create(&threads6[i], NULL, startSock6, (void*) &arg6[i]) != 0)
-//			write(1, msg, strlen(msg));
+		if (pthread_create(&threads6[i], NULL, startSock6, (void*) &arg6[i]) != 0)
+			write(1, msg, strlen(msg));
 	}
-//	for (int i = 0; i < socketAmount; i++)
-//	{
+	for (int i = 0; i < socketAmount; i++)
+	{
 		pthread_join(threads4[0], NULL);
-//		pthread_join(&threads6[i], NULL);
-//	}				
+		pthread_join(&threads6[i], NULL);
+	}				
 	return 0;
 }
 
