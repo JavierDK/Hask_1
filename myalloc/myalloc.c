@@ -68,22 +68,15 @@ ThreadMem* threadFind(pid_t iam)
 		prevT = posT;
 		posT = posT -> next;		
 	}
-	printf("This is found thread %p\n", posT);
 	pthread_mutex_unlock(&threadListMutex); 
 	if (posT == NULL)
 	{
-		write(1, "xxx", 3);
 		ThreadMem *new = createTM();
-		write(1, "???", 3);
 		printf("Allocated thread memory %p\n", new);
 		new -> tid = iam;
 		new -> alloc.first = NULL;
 		new -> alloc.last = NULL;
 		new -> next = NULL;
-		for (int i = 0; i < SMALL_THREAD_MEM; i++)
-			new -> small[i] -> addr = NULL;			
-		for (int i = 0; i < BIG_THREAD_MEM; i++)
-			new -> large[i] -> addr = NULL;		
 		pthread_mutex_lock(&threadListMutex); 
 		if (prevT == NULL)
 			allocMem = new;
@@ -117,11 +110,8 @@ void addThreadMem(BucketNode *new, ThreadMem *pos)
 
 void* getSmall(int size)
 {
-	printf("Get small started with %d bytes\n", size);
 	pid_t iam = pthread_self();
-	printf("Thread ID is %d\n", iam);
 	ThreadMem *pos = threadFind(iam);
-	printf("Thread was found %p\n", pos);
 	write(1, "###", 3);
 	for (int i = 0; i < SMALL_THREAD_MEM; i++)
 		if (pos -> small[i] != NULL && pos -> small[i] -> size >= size)
