@@ -5,8 +5,11 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/mman.h>
+#include <fcntl.h>
+#include <stdlib.h>
+#include <unistd.h>
 
-#define THRESHOLD 8
+#define MEM_THRESHOLD 8
 #define BIG_THREAD_MEM 5
 #define SMALL_THREAD_MEM 20
 #define MASK 32
@@ -45,7 +48,7 @@ BucketNode* createBN()
 
 ThreadMem* createTM()
 {
-		ThreadMem* res = (ThreadMem*) mmap(NULL, sizeof(ThreadMem), PROT_READ | PROT_WRITE, MAP_PRIVATE, -1, 0);
+		ThreadMem* res = (ThreadMem*) mmap(NULL, sizeof(ThreadMem) + 1, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 		for (int i = 0; i < SMALL_THREAD_MEM; i++)
 			res -> small[i] = NULL;
 		for (int i = 0; i < BIG_THREAD_MEM; i++)
@@ -65,10 +68,14 @@ ThreadMem* threadFind(pid_t iam)
 		prevT = posT;
 		posT = posT -> next;		
 	}
+	printf("This is found thread %p\n", posT);
 	pthread_mutex_unlock(&threadListMutex); 
-	if (posT = NULL)
+	if (posT == NULL)
 	{
+		write(1, "xxx", 3);
 		ThreadMem *new = createTM();
+		write(1, "???", 3);
+		printf("Allocated thread memory %p\n", new);
 		new -> tid = iam;
 		new -> alloc.first = NULL;
 		new -> alloc.last = NULL;
@@ -86,7 +93,9 @@ ThreadMem* threadFind(pid_t iam)
 		return new;
 	}
 	else
+	{
 		return posT;
+	}
 }
 
 void addThreadMem(BucketNode *new, ThreadMem *pos)
@@ -108,8 +117,12 @@ void addThreadMem(BucketNode *new, ThreadMem *pos)
 
 void* getSmall(int size)
 {
+	printf("Get small started with %d bytes\n", size);
 	pid_t iam = pthread_self();
+	printf("Thread ID is %d\n", iam);
 	ThreadMem *pos = threadFind(iam);
+	printf("Thread was found %p\n", pos);
+	write(1, "###", 3);
 	for (int i = 0; i < SMALL_THREAD_MEM; i++)
 		if (pos -> small[i] != NULL && pos -> small[i] -> size >= size)
 		{
@@ -122,6 +135,7 @@ void* getSmall(int size)
 			addThreadMem(new, pos);
 			return new -> addr;			
 		}
+	write(1, "!!!", 3);
 	BucketNode *it;
 	pthread_mutex_lock(&smallBucketMutex);
 	for (it = smallB.first; it != NULL; it = it -> next)	
@@ -222,15 +236,23 @@ void* memalign(size_t a, size_t b)
 
 void* malloc(size_t size)
 {
-	if (size == 0)
+	printf("Malloc started %d\n", size);
+	if ((int)size == 0)
+	{
+		printf("!!!!!!!!!\n");
 		return NULL;
-	if (size <= THRESHOLD)
-	  return getSmall(size);
+	}
+	if (size <= MEM_THRESHOLD)
+	{
+		printf("Call of get small\n");
+		return getSmall(size);
+	}
 	return getLarge(size);
 }
 
 void* calloc(size_t num, size_t sz)
 {
+	printf("Calloc statred with args %d %d\n", num, sz);
 	void *res = malloc(num * sz);
 	return memset(res, 0, num*sz);
 }
@@ -277,6 +299,9 @@ void insertFreeMem(BucketNode *node, BucketNode **memArr, int sz, Queue *bucket)
 
 void free(void *ptr)
 {
+	//printf("Free started with arg %p\n", ptr);
+	if (ptr == NULL)
+		return;
 	ThreadMem *pos = threadFind((pid_t)pthread_self);
 	BucketNode *node;
 	for (BucketNode* it = pos -> alloc. first; it != NULL; it = it -> next)
@@ -320,9 +345,11 @@ void* realloc(void *ptr, size_t sz)
 
 void _init()
 {
+	printf("Init started\n");	
 	pthread_mutex_init(&threadListMutex, 0);
 	pthread_mutex_init(&smallBucketMutex, 0);
 	pthread_mutex_init(&largeBucketMutex, 0);
+	printf("Init finished\n");
 }
 
 void _fini()
@@ -332,8 +359,3 @@ void _fini()
 	pthread_mutex_destroy(&largeBucketMutex);
 }
 
-int main()
-{
-	printf("%d", getpagesize());
-	return 0;	
-}
