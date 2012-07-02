@@ -42,7 +42,7 @@ pthread_mutex_t threadListMutex, smallBucketMutex, largeBucketMutex;
 
 BucketNode* createBN()
 {
-		BucketNode* res = (BucketNode*) mmap(NULL, sizeof(BucketNode), PROT_READ | PROT_WRITE, MAP_PRIVATE, -1, 0);
+		BucketNode* res = (BucketNode*) mmap(NULL, sizeof(BucketNode), PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
 		return res;		
 }
 
@@ -72,7 +72,6 @@ ThreadMem* threadFind(pid_t iam)
 	if (posT == NULL)
 	{
 		ThreadMem *new = createTM();
-		printf("Allocated thread memory %p\n", new);
 		new -> tid = iam;
 		new -> alloc.first = NULL;
 		new -> alloc.last = NULL;
@@ -112,7 +111,6 @@ void* getSmall(int size)
 {
 	pid_t iam = pthread_self();
 	ThreadMem *pos = threadFind(iam);
-	write(1, "###", 3);
 	for (int i = 0; i < SMALL_THREAD_MEM; i++)
 		if (pos -> small[i] != NULL && pos -> small[i] -> size >= size)
 		{
@@ -125,7 +123,6 @@ void* getSmall(int size)
 			addThreadMem(new, pos);
 			return new -> addr;			
 		}
-	write(1, "!!!", 3);
 	BucketNode *it;
 	pthread_mutex_lock(&smallBucketMutex);
 	for (it = smallB.first; it != NULL; it = it -> next)	
@@ -150,13 +147,10 @@ void* getSmall(int size)
 			return it -> addr;
 		}
 	pthread_mutex_unlock(&smallBucketMutex);
-	void* new_addr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE, -1, 0);
+	void* new_addr = mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANON, -1, 0);
 	BucketNode *new = createBN();
 	new -> addr = new_addr;
-	int adds = size;
-	while (adds >= 0)
-		size -= getpagesize();
-	new -> size = size - adds;
+	new -> size = size;
 	new -> next = NULL;
 	new -> prev = NULL;
 	new -> small = 1;
@@ -226,15 +220,15 @@ void* memalign(size_t a, size_t b)
 
 void* malloc(size_t size)
 {
-	printf("Malloc started %d\n", size);
+//	printf("Malloc started %d\n", size);
 	if ((int)size == 0)
 	{
-		printf("!!!!!!!!!\n");
+//		printf("!!!!!!!!!\n");
 		return NULL;
 	}
 	if (size <= MEM_THRESHOLD)
 	{
-		printf("Call of get small\n");
+//		printf("Call of get small\n");
 		return getSmall(size);
 	}
 	return getLarge(size);
@@ -249,8 +243,9 @@ void* calloc(size_t num, size_t sz)
 
 void insertFreeMem(BucketNode *node, BucketNode **memArr, int sz, Queue *bucket)
 {
+//	printf("Trying insert free memory\n");
 	for (int i = 0; i < sz; i++)
-		if (memArr[i] != NULL)
+		if (memArr[i] == NULL)
 		{
 			node -> prev = NULL;
 			node -> next = NULL;
@@ -261,6 +256,7 @@ void insertFreeMem(BucketNode *node, BucketNode **memArr, int sz, Queue *bucket)
 		pthread_mutex_lock(&smallBucketMutex);
 	else
 		pthread_mutex_lock(&largeBucketMutex);
+//		printf("GUT\n");
 	if (bucket -> first == NULL)
 	{
 		node -> prev = NULL;
@@ -289,10 +285,13 @@ void insertFreeMem(BucketNode *node, BucketNode **memArr, int sz, Queue *bucket)
 
 void free(void *ptr)
 {
-	//printf("Free started with arg %p\n", ptr);
+//	printf("Free started with arg\n");
+//	int n;
+//	scanf("%d", &n);
 	if (ptr == NULL)
 		return;
 	ThreadMem *pos = threadFind((pid_t)pthread_self);
+//	printf("Thread memory found at \n");
 	BucketNode *node;
 	for (BucketNode* it = pos -> alloc. first; it != NULL; it = it -> next)
 		if (ptr == it -> addr)
@@ -300,6 +299,11 @@ void free(void *ptr)
 			node = it;
 			break;
 		}
+//	printf("Bucket node found\n");
+	if (node == NULL)
+	{
+//		printf("F*****CK\n");
+	}
 	if (node -> prev)
 		node -> prev -> next = node -> next;
 	else
@@ -312,6 +316,7 @@ void free(void *ptr)
 		insertFreeMem(node, pos -> small, SMALL_THREAD_MEM, &smallB);		
 	else
 		insertFreeMem(node, pos -> large, BIG_THREAD_MEM, &largeB);
+//	printf("Succesful exit from free\n");
 }
 
 void* realloc(void *ptr, size_t sz)
@@ -335,11 +340,9 @@ void* realloc(void *ptr, size_t sz)
 
 void _init()
 {
-	printf("Init started\n");	
 	pthread_mutex_init(&threadListMutex, 0);
 	pthread_mutex_init(&smallBucketMutex, 0);
 	pthread_mutex_init(&largeBucketMutex, 0);
-	printf("Init finished\n");
 }
 
 void _fini()
