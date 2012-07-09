@@ -17,13 +17,13 @@ struct addrinfo *clinfo;
 
 int ofd[MAX_FD], ofdsz;
 int nfd[MAX_FD], nfdsz;
+struct pollfd action[MAX_FD];
 int status[MAX_FD];
 
 
 void bindAtPort(char *port)
 { 
 	printf("There is port number %s\n", port);
-	//memset(&hints, 0, sizeof(struct addrinfo));
 	hints -> ai_family = AF_UNSPEC;
 	hints -> ai_socktype = SOCK_STREAM;
 	hints -> ai_flags = AI_PASSIVE;
@@ -61,6 +61,39 @@ void bindAtPort(char *port)
 	}
 }
 
+void serve()
+{
+	char *ip = calloc(50, sizeof(char));
+	struct sockaddr *addr = malloc(sizeof(struct sockaddr));
+	size_t addrlen = sizeof(struct sockaddr);
+	for (int i = 0; i < ofdsz; i++)
+	{
+		int newfd = accept(ofd[i], addr, &addrlen);
+		if (newfd >= 0)
+		{
+			if (nfdsz == MAX_FD)
+			{
+				char *msg = "Error: too much fd are in use!\n";
+				write(2, msg, strlen(msg));
+			}
+			if (addr -> sa_family == AF_INET)
+			{
+				struct sockaddr_in *sin = addr;
+				inet_ntop(AF_INET, &(sin->sin_addr), ip, 50);
+			}
+			else if (addr -> sa_family == AF_INET6)
+			{
+				struct sockaddr_in6 *sin = addr;
+				inet_ntop(AF_INET6, &(sin->sin6_addr), ip, 50);
+			}
+			printf("Accepted with new fd %d\n", newfd);
+		}
+		nfd[nfdsz] = newfd;
+		action[nfdsz].fd = newfd;
+		action[nfdsz].events = POLLIN;
+	}
+}
+
 int main(int argc, char **argv)
 {
 	hints = malloc(sizeof(struct addrinfo));
@@ -80,5 +113,7 @@ int main(int argc, char **argv)
 			}
 	for (int i = 1; i < argc; i++)
 		bindAtPort(argv[i]);
+	while (1)
+		serve();
 	return 0;
 }
